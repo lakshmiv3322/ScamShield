@@ -1,0 +1,6 @@
+{
+  "name": "ScamShield",
+  "description": "AI Fraud Copilot for Non-Tech-Savvy Family Members. Forward suspicious messages & screenshots to a shared AI assistant that flags scams in plain language and alerts the family circle.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
