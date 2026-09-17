@@ -172,7 +172,7 @@ webhooksRouter.post('/whatsapp', async (req, res) => {
         riskLevel: analysis.riskLevel,
         scamType: analysis.scamType,
         title: `${analysis.scamType} Detected`,
-        description: `${member.name} forwarded a suspicious message via WhatsApp: "${text.slice(0, 60)}..."`,
+        description: `${member.name} forwarded a suspicious message via WhatsApp: "${(text || '').slice(0, 60)}..."`,
         affectedMemberName: member.name,
         affectedMemberRelation: member.relation,
         isRead: false,
@@ -184,7 +184,7 @@ webhooksRouter.post('/whatsapp', async (req, res) => {
       dispatchFamilyThreatAlert({
         familyId: member.family_id,
         alert: newAlert,
-        originalText: text,
+        originalText: text || '',
         actionableAdvice: analysis.actionableAdvice,
       }).catch((err) => console.error('Error dispatching WhatsApp alert notification:', err));
     }

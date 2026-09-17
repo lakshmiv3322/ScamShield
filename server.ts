@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import session from 'express-session';
 import cookieParser from 'cookie-parser';
@@ -38,12 +39,29 @@ setInterval(() => {
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
-const SESSION_SECRET = process.env.SESSION_SECRET || 'scamshield-secret-session-key-change-in-prod';
 
-// Security Headers
+let sessionSecret = process.env.SESSION_SECRET;
+if (!sessionSecret) {
+  console.warn('⚠️ SESSION_SECRET not set — generating a random one for this session; sessions will not persist across restarts');
+  sessionSecret = crypto.randomBytes(32).toString('hex');
+}
+const SESSION_SECRET = sessionSecret;
+
+// Security Headers & Content Security Policy
 app.use(
   helmet({
-    contentSecurityPolicy: false, // Disabled to permit inline Three.js shaders & dynamic avatars
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+        fontSrc: ["'self'", 'data:', 'https://fonts.gstatic.com'],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https://api.dicebear.com', 'https://images.unsplash.com'],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'self'"],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   })
 );
@@ -86,7 +104,6 @@ app.post('/api/admin/cleanup', (req, res) => {
   res.json({ success: true, ...result });
 });
 
-
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({
@@ -120,7 +137,7 @@ app.post('/api/analyze', analyzeRateLimit, async (req, res) => {
   }
 });
 
-// Broadcast Alert Simulator Endpoint
+// SIMULATED — for demo purposes. Production would call WhatsApp Business API / Twilio here, dispatching to each family member with receiveAlerts=true.
 app.post('/api/alerts/broadcast', (req, res) => {
   const { messageId, familyId } = req.body;
   res.json({

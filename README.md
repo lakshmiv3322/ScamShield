@@ -41,6 +41,7 @@ Every day, non-tech-savvy elderly parents and family members are targeted by sop
 
 ### 📢 4. 1-Click Family Defense Broadcast
 * When a high-risk scam is detected, broadcast an emergency advisory across all connected family WhatsApp contacts to prevent siblings and spouses from falling for the same pitch.
+* *Note: The emergency broadcast endpoint is simulated in the current build for demonstration purposes. Full production deployment requires integrating the WhatsApp Business API or Twilio Outbound Messaging API along with a recipient opt-in consent flow.*
 
 ### 📱 5. Progressive Web App (PWA)
 * Standalone display mode with offline shell caching.
