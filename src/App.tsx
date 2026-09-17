@@ -120,11 +120,12 @@ export default function App() {
           setElderMode(meData.user.elderModeEnabled);
         }
 
-        // Parallel fetch of family, messages, alerts
-        const [famRes, msgRes, alertRes] = await Promise.all([
+        // Parallel fetch of family, messages, alerts, map pins
+        const [famRes, msgRes, alertRes, mapRes] = await Promise.all([
           fetch('/api/family'),
           fetch('/api/messages'),
           fetch('/api/alerts'),
+          fetch('/api/map/pins'),
         ]);
 
         if (famRes.ok) {
@@ -147,24 +148,13 @@ export default function App() {
             } else {
               setSelectedMessageId((prev) => prev || loadedMessages[0].id);
             }
+          }
+        }
 
-            // Generate map pins from analyzed scam messages
-            const generatedPins: MapRiskPin[] = loadedMessages
-              .filter((m) => m.analysis && m.analysis.riskLevel !== 'safe')
-              .map((m, idx) => ({
-                id: `pin_${m.id}`,
-                cityName: ['New Delhi', 'Mumbai', 'Bengaluru', 'Jaipur', 'Pune', 'Hyderabad'][idx % 6],
-                lat: 28.6139 + (idx % 3 - 1) * 3 + (Math.random() - 0.5),
-                lng: 77.209 + (idx % 2 - 0.5) * 4 + (Math.random() - 0.5),
-                riskLevel: m.analysis!.riskLevel,
-                scamSnippet: (m.originalText || m.content.text || 'Suspicious Attachment').slice(0, 75) + '...',
-                memberAffected: m.senderName,
-                scamType: m.analysis!.scamType,
-                timestamp: m.timestamp || 'Recently',
-                isPulsing: idx === 0,
-              }));
-
-            setPins(generatedPins);
+        if (mapRes.ok) {
+          const mapData = await mapRes.json();
+          if (mapData.pins && mapData.pins.length > 0) {
+            setPins(mapData.pins);
           }
         }
 

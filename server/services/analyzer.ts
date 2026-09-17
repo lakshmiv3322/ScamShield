@@ -24,13 +24,82 @@ function getAI(): GoogleGenAI | null {
   return aiClient;
 }
 
+/**
+ * Check URL against Google Safe Browsing API v4
+ */
+export async function checkGoogleSafeBrowsing(urlToCheck: string): Promise<{
+  isMalicious: boolean;
+  threatType?: string;
+} | null> {
+  const apiKey = process.env.GOOGLE_SAFE_BROWSING_API_KEY;
+  if (!apiKey || !urlToCheck) return null;
+
+  try {
+    const endpoint = `https://safebrowsing.googleapis.com/v4/threatMatches:find?key=${apiKey}`;
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        client: { clientId: 'scamshield', clientVersion: '1.0.0' },
+        threatInfo: {
+          threatTypes: [
+            'MALWARE',
+            'SOCIAL_ENGINEERING',
+            'UNWANTED_SOFTWARE',
+            'POTENTIALLY_HARMFUL_APPLICATION',
+          ],
+          platformTypes: ['ANY_PLATFORM'],
+          threatEntryTypes: ['URL'],
+          threatEntries: [{ url: urlToCheck }],
+        },
+      }),
+    });
+
+    if (!response.ok) return null;
+    const data = await response.json();
+    if (data && data.matches && data.matches.length > 0) {
+      return {
+        isMalicious: true,
+        threatType: data.matches[0].threatType || 'SOCIAL_ENGINEERING',
+      };
+    }
+    return { isMalicious: false };
+  } catch (err) {
+    console.error('Google Safe Browsing API check error:', err);
+    return null;
+  }
+}
+
 export async function runFraudAnalysis(params: AnalyzeParams): Promise<{
   analysis: AnalysisOutput;
-  source: 'gemini-2.5-flash' | 'heuristic-engine';
+  source: 'gemini-2.5-flash' | 'heuristic-engine' | 'google-safe-browsing';
 }> {
   const { text, linkUrl, imageUrl, senderContact } = params;
-  const ai = getAI();
 
+  // 1. Google Safe Browsing API Check (if linkUrl or link in text present & API key set)
+  const targetUrl = linkUrl || (text?.match(/https?:\/\/[^\s]+/)?.[0]);
+  if (targetUrl) {
+    const safeBrowsingResult = await checkGoogleSafeBrowsing(targetUrl);
+    if (safeBrowsingResult?.isMalicious) {
+      return {
+        analysis: {
+          riskScore: 100,
+          riskLevel: 'scam',
+          scamType: 'Malicious Phishing URL (Google Safe Browsing Flagged)',
+          plainLanguageExplanation: [
+            'Global Security Database Alert: The domain in this link is registered as a confirmed phishing or malware distribution vector in Google Safe Browsing.',
+            'Deceptive Clone: Designed to capture bank credentials, UPI PINs, or install malicious Android payload files.',
+            'Never open links from unverified WhatsApp forwards.',
+          ],
+          actionableAdvice: 'DO NOT click or open this link under any circumstances. Block the sender immediately.',
+        },
+        source: 'google-safe-browsing',
+      };
+    }
+  }
+
+  // 2. Gemini 2.5 Flash Multimodal Analysis
+  const ai = getAI();
   if (ai) {
     try {
       const prompt = `You are ScamShield, an AI fraud detection copilot engineered to protect non-tech-savvy elderly parents and family members from financial fraud, WhatsApp scams, phishing, fake bills, impersonation, and KYC traps.
@@ -92,8 +161,10 @@ Return ONLY a JSON object with this exact schema:
     }
   }
 
-  // Heuristic Fraud Engine (Rule-based Fallback)
+  // 3. Expanded Heuristic Fraud Engine (Rule-based Fallback for Indian Scams & Hinglish)
   const lower = (text || '').toLowerCase();
+  const lowerLink = (linkUrl || '').toLowerCase();
+
   const hasUrgency =
     lower.includes('urgent') ||
     lower.includes('immediately') ||
@@ -102,28 +173,51 @@ Return ONLY a JSON object with this exact schema:
     lower.includes('disconnect') ||
     lower.includes('suspended') ||
     lower.includes('freeze') ||
-    lower.includes('within 24 hours');
+    lower.includes('within 24 hours') ||
+    lower.includes('bijli') ||
+    lower.includes('bijlee') ||
+    lower.includes('khata band') ||
+    lower.includes('khata freeze') ||
+    lower.includes('account band') ||
+    lower.includes('nahi diya toh') ||
+    lower.includes('action liya jayega') ||
+    lower.includes('fir darz') ||
+    lower.includes('court notice') ||
+    lower.includes('last chance') ||
+    lower.includes('final warning');
 
-  const hasFinancial =
+  const hasFinancialOrIdentity =
     lower.includes('kyc') ||
     lower.includes('bank') ||
     lower.includes('account') ||
     lower.includes('otp') ||
     lower.includes('upi') ||
     lower.includes('tax refund') ||
+    lower.includes('income tax vibhag') ||
     lower.includes('lottery') ||
+    lower.includes('lottery jeeta') ||
+    lower.includes('prize money') ||
+    lower.includes('kbc') ||
     lower.includes('electricity') ||
-    lower.includes('bijli') ||
-    lower.includes('bill');
+    lower.includes('bill') ||
+    lower.includes('recharge karo') ||
+    lower.includes('ek baar click') ||
+    lower.includes('paisa wapas') ||
+    lower.includes('cbi') ||
+    lower.includes('challan') ||
+    lower.includes('aadhaar') ||
+    lower.includes('pan card') ||
+    lower.includes('reward points');
+
+  const suspiciousTLDs = [
+    '.buzz', '.site', '.info', '.club', '.shop', '.xyz', '.top',
+    '.online', '.work', '.vip', '.monster', '.link', '.tk', '.ml',
+    '.ga', '.cf', '.gq', '.app-apk', '.apk', '.is', '.cc'
+  ];
 
   const hasSuspiciousDomain =
-    (linkUrl &&
-      (linkUrl.includes('.online') ||
-        linkUrl.includes('.top') ||
-        linkUrl.includes('.link') ||
-        linkUrl.includes('.xyz') ||
-        linkUrl.includes('.vip'))) ||
-    false;
+    suspiciousTLDs.some((tld) => lowerLink.includes(tld) || lower.includes(tld)) ||
+    (lowerLink.length > 0 && !lowerLink.includes('gov.in') && !lowerLink.includes('nic.in') && (lowerLink.includes('bit.ly') || lowerLink.includes('tinyurl')));
 
   let riskScore = 15;
   let riskLevel: 'safe' | 'caution' | 'scam' = 'safe';
@@ -134,29 +228,37 @@ Return ONLY a JSON object with this exact schema:
   ];
   let actionableAdvice = 'This message appears safe. Remember never to share OTP codes with anyone.';
 
-  if (hasUrgency && (hasFinancial || hasSuspiciousDomain)) {
+  if (hasUrgency && (hasFinancialOrIdentity || hasSuspiciousDomain)) {
     riskScore = 95;
     riskLevel = 'scam';
-    scamType = lower.includes('electricity') || lower.includes('bijli')
-      ? 'Fake Electricity Disconnection Scam'
-      : lower.includes('kyc') || lower.includes('bank')
-      ? 'Banking KYC Account Freeze Trap'
-      : 'Urgent Phishing Scam';
+
+    if (lower.includes('electricity') || lower.includes('bijli') || lower.includes('bijlee') || lower.includes('light bill')) {
+      scamType = 'Fake Electricity Disconnection Scam';
+    } else if (lower.includes('kyc') || lower.includes('khata') || lower.includes('bank')) {
+      scamType = 'Banking KYC Account Freeze Trap';
+    } else if (lower.includes('lottery') || lower.includes('prize') || lower.includes('kbc')) {
+      scamType = 'Fake Lottery & Reward Scam';
+    } else if (lower.includes('tax') || lower.includes('income tax')) {
+      scamType = 'Income Tax Refund Phishing';
+    } else {
+      scamType = 'Urgent Phishing Scam';
+    }
+
     plainLanguageExplanation = [
-      'Artificial Panic Trigger: Threatens rapid cutoff or account freeze to rush you into acting without verifying.',
-      'Unofficial Sender: Government and legitimate utility boards never conduct official service warnings via personal WhatsApp numbers.',
-      'Untrusted Destination: Link redirects to an unverified domain designed to harvest credentials or banking PINs.',
+      'Artificial Panic Trigger: Uses threats like service cutoff ("bijli band") or account freeze ("khata block") to force immediate action.',
+      'Unofficial WhatsApp Channel: Government offices and utility boards never send personal WhatsApp warnings or ask for bill payments via unverified links.',
+      'Untrusted Link Destination: Directs to an unofficial web domain designed to steal netbanking PINs or UPI credentials.',
     ];
-    actionableAdvice = 'DO NOT click links or call the number in the message. Verify your account only through the official provider app or in-person branch.';
-  } else if (hasUrgency || hasFinancial || hasSuspiciousDomain) {
+    actionableAdvice = 'DO NOT click links or call numbers in this message. Pay utility bills only via official provider apps or in-person service centers.';
+  } else if (hasUrgency || hasFinancialOrIdentity || hasSuspiciousDomain) {
     riskScore = 58;
     riskLevel = 'caution';
-    scamType = 'Unverified Financial / Account Notice';
+    scamType = 'Unverified Financial / Service Notice';
     plainLanguageExplanation = [
-      'Message requests action regarding sensitive financial or service records without standard verification badges.',
-      'Always independently verify unfamiliar requests before sharing information or making payments.',
+      'Message requests action regarding sensitive financial or service records without standard verification indicators.',
+      'Always independently verify unfamiliar requests before sharing information, clicking links, or making payments.',
     ];
-    actionableAdvice = 'Call the organization directly using the phone number printed on your official physical bill or card.';
+    actionableAdvice = 'Call the organization directly using the official phone number printed on your physical bill or bank card.';
   } else if (imageUrl && !text) {
     riskScore = 65;
     riskLevel = 'caution';

@@ -15,6 +15,7 @@ import { invitesRouter } from './server/routes/invites.js';
 import { webhooksRouter } from './server/routes/webhooks.js';
 import { shareRouter } from './server/routes/share.js';
 import { notificationsRouter } from './server/routes/notifications.js';
+import { mapRouter } from './server/routes/map.js';
 import { runFraudAnalysis } from './server/services/analyzer.js';
 import { cleanupFamilyRetention } from './server/db/queries/family.js';
 import helmet from 'helmet';
@@ -76,6 +77,7 @@ app.use('/api/alerts', alertsRouter);
 app.use('/api/invites', invitesRouter);
 app.use('/api/webhooks', webhooksRouter);
 app.use('/api/notifications', notificationsRouter);
+app.use('/api/map', mapRouter);
 app.use('/share', shareRouter);
 
 // Callable admin endpoint for manual retention cleanup
