@@ -1,14 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import confetti from 'canvas-confetti';
-import {
-  initialUser,
-  initialFamily,
-  initialMembers,
-  initialMessages,
-  initialAlerts,
-  initialRiskPins,
-  initialDashboardStats,
-} from './mock/data';
 import {
   User,
   Family,
@@ -23,6 +14,7 @@ import { Navbar } from './components/Navbar';
 import { Sidebar } from './components/Sidebar';
 import { QuickForwardModal } from './components/QuickForwardModal';
 import { InviteModal } from './components/InviteModal';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Pages
 import { LandingPage } from './pages/LandingPage';
@@ -34,19 +26,49 @@ import { MessagesPage } from './pages/MessagesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuthPage } from './pages/AuthPage';
 
+const defaultUser: User = {
+  id: '',
+  name: 'Family Guardian',
+  email: '',
+  role: 'admin',
+  elderModeEnabled: false,
+  createdAt: new Date().toISOString(),
+};
+
+const defaultFamily: Family = {
+  id: '',
+  name: 'Family Protection Circle',
+  code: 'SHIELD-0000',
+  createdAt: new Date().toISOString(),
+  adminUserId: '',
+  elderModeDefault: false,
+};
+
+const defaultDashboardStats: DashboardStats = {
+  scamsDetectedCount: 0,
+  scamsTrendWeek: 0,
+  messagesAnalyzedCount: 0,
+  familyMembersProtectedCount: 1,
+  averageResponseTimeSec: 1.2,
+  highRiskPercentage: 0,
+};
+
 export default function App() {
   // Navigation
-  const [currentPage, setCurrentPage] = useState<string>('dashboard');
-  const [selectedMessageId, setSelectedMessageId] = useState<string>('msg_101');
+  const [currentPage, setCurrentPage] = useState<string>('landing');
+  const [selectedMessageId, setSelectedMessageId] = useState<string>('');
 
-  // Application Data States
-  const [user, setUser] = useState<User>(initialUser);
-  const [family, setFamily] = useState<Family>(initialFamily);
-  const [members, setMembers] = useState<FamilyMember[]>(initialMembers);
-  const [messages, setMessages] = useState<MessageItem[]>(initialMessages);
-  const [alerts, setAlerts] = useState<AlertItem[]>(initialAlerts);
-  const [pins, setPins] = useState<MapRiskPin[]>(initialRiskPins);
-  const [stats, setStats] = useState<DashboardStats>(initialDashboardStats);
+  // Application Data States (Backed by Database)
+  const [user, setUser] = useState<User>(defaultUser);
+  const [family, setFamily] = useState<Family>(defaultFamily);
+  const [members, setMembers] = useState<FamilyMember[]>([]);
+  const [messages, setMessages] = useState<MessageItem[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [pins, setPins] = useState<MapRiskPin[]>([]);
+  const [stats, setStats] = useState<DashboardStats>(defaultDashboardStats);
+
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
 
   // Elder Mode (Increases font size, contrast, simplified view)
   const [elderMode, setElderMode] = useState<boolean>(() => {
@@ -75,6 +97,102 @@ export default function App() {
       document.documentElement.classList.remove('elder-mode');
     }
   }, [elderMode]);
+
+  // Register Service Worker for Web Push & PWA
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('SW registration failed:', err);
+      });
+    }
+  }, []);
+
+
+  // Load Real App Data from DB APIs
+  const loadAppData = useCallback(async () => {
+    try {
+      const meRes = await fetch('/api/auth/me');
+      if (meRes.ok) {
+        const meData = await meRes.json();
+        setUser(meData.user);
+        setIsAuthenticated(true);
+        if (meData.user.elderModeEnabled !== undefined) {
+          setElderMode(meData.user.elderModeEnabled);
+        }
+
+        // Parallel fetch of family, messages, alerts
+        const [famRes, msgRes, alertRes] = await Promise.all([
+          fetch('/api/family'),
+          fetch('/api/messages'),
+          fetch('/api/alerts'),
+        ]);
+
+        if (famRes.ok) {
+          const famData = await famRes.json();
+          if (famData.family) setFamily(famData.family);
+          if (famData.members) setMembers(famData.members);
+          if (famData.stats) setStats(famData.stats);
+        }
+
+        if (msgRes.ok) {
+          const msgData = await msgRes.json();
+          const loadedMessages: MessageItem[] = msgData.messages || [];
+          setMessages(loadedMessages);
+
+          if (loadedMessages.length > 0) {
+            const urlParams = new URLSearchParams(window.location.search);
+            const sharedMsgId = urlParams.get('messageId');
+            if (sharedMsgId && loadedMessages.some((m) => m.id === sharedMsgId)) {
+              setSelectedMessageId(sharedMsgId);
+            } else {
+              setSelectedMessageId((prev) => prev || loadedMessages[0].id);
+            }
+
+            // Generate map pins from analyzed scam messages
+            const generatedPins: MapRiskPin[] = loadedMessages
+              .filter((m) => m.analysis && m.analysis.riskLevel !== 'safe')
+              .map((m, idx) => ({
+                id: `pin_${m.id}`,
+                cityName: ['New Delhi', 'Mumbai', 'Bengaluru', 'Jaipur', 'Pune', 'Hyderabad'][idx % 6],
+                lat: 28.6139 + (idx % 3 - 1) * 3 + (Math.random() - 0.5),
+                lng: 77.209 + (idx % 2 - 0.5) * 4 + (Math.random() - 0.5),
+                riskLevel: m.analysis!.riskLevel,
+                scamSnippet: (m.originalText || m.content.text || 'Suspicious Attachment').slice(0, 75) + '...',
+                memberAffected: m.senderName,
+                scamType: m.analysis!.scamType,
+                timestamp: m.timestamp || 'Recently',
+                isPulsing: idx === 0,
+              }));
+
+            setPins(generatedPins);
+          }
+        }
+
+        if (alertRes.ok) {
+          const alertData = await alertRes.json();
+          setAlerts(alertData.alerts || []);
+        }
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedMsgId = urlParams.get('messageId');
+        if (sharedMsgId) {
+          setCurrentPage('message-detail');
+        } else {
+          setCurrentPage((prev) => (prev === 'landing' || prev === 'auth' ? 'dashboard' : prev));
+        }
+      } else {
+        setIsAuthenticated(false);
+      }
+    } catch (e) {
+      console.warn('Could not fetch session, staying on current view:', e);
+    } finally {
+      setAuthChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadAppData();
+  }, [loadAppData]);
 
   // Handle Analyzing a New Forwarded Message (via API or intelligent client-side fallback)
   const handleAnalyzeMessage = async (
@@ -207,6 +325,28 @@ export default function App() {
       analysis: fullAnalysis,
     };
 
+    // Save to Database via API
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newMessageId,
+          senderMemberId,
+          senderName: newMessage.senderName,
+          senderRelation: newMessage.senderRelation,
+          senderContact: newMessage.senderContact,
+          originalText: text,
+          linkUrl,
+          screenshotUrl: imageUrl,
+          status: newMessage.status,
+          analysis: fullAnalysis,
+        }),
+      });
+    } catch (saveErr) {
+      console.warn('Failed to persist message to server DB:', saveErr);
+    }
+
     // Add to messages state
     setMessages((prev) => [newMessage, ...prev]);
 
@@ -222,8 +362,8 @@ export default function App() {
         title: `${analysisResult.scamType} Detected`,
         description: `Incoming forward to ${member?.name || 'Family'} contains deceptive fraudulent indicators.`,
         timestamp: 'Just now',
-        affectedMemberName: member?.name || 'Sunita Sharma',
-        affectedMemberRelation: member?.relation || 'Mother',
+        affectedMemberName: member?.name || 'Family Member',
+        affectedMemberRelation: member?.relation || 'Member',
         isRead: false,
         acknowledgedBy: [],
       };
@@ -286,7 +426,11 @@ export default function App() {
       const demoScamText =
         'URGENT: Income Tax Department approved refund of ₹24,850. Confirm bank account & IFSC within 15 mins to avoid cancellation: http://incometax-gov-refund-portal.online/claim';
       const demoLink = 'http://incometax-gov-refund-portal.online/claim';
-      const targetMember = members.find((m) => m.relation === 'Mother') || members[0];
+      const targetMember = members.find((m) => m.relation === 'Mother') || members[0] || {
+        id: 'mem_target',
+        name: 'Family Member',
+        relation: 'Member',
+      };
 
       const newMsgId = `demo_scam_${Date.now()}`;
       const demoAnalysis = {
@@ -347,7 +491,7 @@ export default function App() {
         riskLevel: 'scam',
         scamType: 'Tax Refund Phishing Scam',
         title: 'Emergency: High-Risk Tax Phishing Blocked',
-        description: `Mother (${targetMember.name}) received an urgent fake Income Tax refund trap.`,
+        description: `${targetMember.name} received an urgent fake Income Tax refund trap.`,
         timestamp: 'Just now',
         affectedMemberName: targetMember.name,
         affectedMemberRelation: targetMember.relation,
@@ -366,6 +510,22 @@ export default function App() {
         scamType: 'Tax Refund Phishing',
         timestamp: 'Just now',
       };
+
+      // Persist to DB
+      fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: newMsgId,
+          senderMemberId: targetMember.id,
+          senderName: targetMember.name,
+          senderRelation: targetMember.relation,
+          originalText: demoScamText,
+          linkUrl: demoLink,
+          status: 'flagged',
+          analysis: demoAnalysis,
+        }),
+      }).catch((e) => console.warn('Demo message DB sync warning:', e));
 
       setMessages((prev) => [newMsg, ...prev]);
       setAlerts((prev) => [newAlert, ...prev]);
@@ -410,10 +570,22 @@ export default function App() {
     setMessages((prev) =>
       prev.map((m) => (m.id === messageId ? { ...m, userFeedback: feedback } : m))
     );
+
+    fetch(`/api/messages/${messageId}/feedback`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ feedback }),
+    }).catch((err) => console.error('Failed to save feedback to DB:', err));
   };
 
   // Broadcast Alert to Family circle
   const handleBroadcastAlert = (messageId: string) => {
+    fetch('/api/alerts/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messageId, familyId: family.id }),
+    }).catch((err) => console.error('Broadcast request error:', err));
+
     try {
       confetti({
         particleCount: 50,
@@ -427,6 +599,9 @@ export default function App() {
 
   const handleMarkAllAlertsRead = () => {
     setAlerts((prev) => prev.map((a) => ({ ...a, isRead: true })));
+    fetch('/api/alerts/read-all', { method: 'PATCH' }).catch((err) =>
+      console.error('Failed to mark alerts read on server:', err)
+    );
   };
 
   const currentMessageItem =
@@ -434,10 +609,16 @@ export default function App() {
   const senderMember = members.find((m) => m.id === currentMessageItem?.senderMemberId);
 
   // If on landing page
-  if (currentPage === 'landing') {
+  if (currentPage === 'landing' && !authChecking) {
     return (
       <LandingPage
-        onEnterDemo={() => setCurrentPage('dashboard')}
+        onEnterDemo={() => {
+          if (isAuthenticated) {
+            setCurrentPage('dashboard');
+          } else {
+            setCurrentPage('auth');
+          }
+        }}
         onStartAuth={() => setCurrentPage('auth')}
       />
     );
@@ -447,8 +628,9 @@ export default function App() {
   if (currentPage === 'auth') {
     return (
       <AuthPage
-        onComplete={(newCircleName) => {
+        onComplete={async (newCircleName) => {
           setFamily((prev) => ({ ...prev, name: newCircleName }));
+          await loadAppData();
           setCurrentPage('dashboard');
         }}
         onCancel={() => setCurrentPage('landing')}
@@ -484,87 +666,94 @@ export default function App() {
 
         {/* Main Content View */}
         <main className="flex-1 p-4 sm:p-6 md:p-8 min-w-0 overflow-y-auto">
-          {currentPage === 'dashboard' && (
-            <DashboardPage
-              family={family}
-              members={members}
-              messages={messages}
-              alerts={alerts}
-              pins={pins}
-              stats={stats}
-              elderMode={elderMode}
-              onNavigateMessage={(msgId) => {
-                setSelectedMessageId(msgId);
-                setCurrentPage('message-detail');
-              }}
-              onNavigateAlerts={() => setCurrentPage('alerts')}
-              onNavigateFamily={() => setCurrentPage('family')}
-              onTriggerDemoScam={handleTriggerDemoScam}
-              onOpenForwardModal={() => setForwardModalOpen(true)}
-              onOpenInviteModal={() => setInviteModalOpen(true)}
-              isInjectingScam={isInjectingScam}
-            />
-          )}
+          <ErrorBoundary name="Main Content View">
+            {currentPage === 'dashboard' && (
+              <DashboardPage
+                family={family}
+                members={members}
+                messages={messages}
+                alerts={alerts}
+                pins={pins}
+                stats={stats}
+                elderMode={elderMode}
+                onNavigateMessage={(msgId) => {
+                  setSelectedMessageId(msgId);
+                  setCurrentPage('message-detail');
+                }}
+                onNavigateAlerts={() => setCurrentPage('alerts')}
+                onNavigateFamily={() => setCurrentPage('family')}
+                onTriggerDemoScam={handleTriggerDemoScam}
+                onOpenForwardModal={() => setForwardModalOpen(true)}
+                onOpenInviteModal={() => setInviteModalOpen(true)}
+                isInjectingScam={isInjectingScam}
+              />
+            )}
 
-          {currentPage === 'message-detail' && currentMessageItem && (
-            <MessageDetailPage
-              message={currentMessageItem}
-              senderMember={senderMember}
-              elderMode={elderMode}
-              onBack={() => setCurrentPage('dashboard')}
-              onUpdateFeedback={handleUpdateFeedback}
-              onBroadcastAlert={handleBroadcastAlert}
-            />
-          )}
+            {currentPage === 'message-detail' && currentMessageItem && (
+              <MessageDetailPage
+                message={currentMessageItem}
+                senderMember={senderMember}
+                elderMode={elderMode}
+                onBack={() => setCurrentPage('dashboard')}
+                onUpdateFeedback={handleUpdateFeedback}
+                onBroadcastAlert={handleBroadcastAlert}
+              />
+            )}
 
-          {currentPage === 'alerts' && (
-            <AlertsPage
-              alerts={alerts}
-              onSelectAlert={(msgId) => {
-                setSelectedMessageId(msgId);
-                setCurrentPage('message-detail');
-              }}
-              onMarkAllAsRead={handleMarkAllAlertsRead}
-              elderMode={elderMode}
-            />
-          )}
+            {currentPage === 'alerts' && (
+              <AlertsPage
+                alerts={alerts}
+                onSelectAlert={(msgId) => {
+                  setSelectedMessageId(msgId);
+                  setCurrentPage('message-detail');
+                }}
+                onMarkAllAsRead={handleMarkAllAlertsRead}
+                elderMode={elderMode}
+              />
+            )}
 
-          {currentPage === 'messages' && (
-            <MessagesPage
-              messages={messages}
-              members={members}
-              onSelectMessage={(msgId) => {
-                setSelectedMessageId(msgId);
-                setCurrentPage('message-detail');
-              }}
-              onOpenForwardModal={() => setForwardModalOpen(true)}
-              elderMode={elderMode}
-            />
-          )}
+            {currentPage === 'messages' && (
+              <MessagesPage
+                messages={messages}
+                members={members}
+                onSelectMessage={(msgId) => {
+                  setSelectedMessageId(msgId);
+                  setCurrentPage('message-detail');
+                }}
+                onOpenForwardModal={() => setForwardModalOpen(true)}
+                elderMode={elderMode}
+              />
+            )}
 
-          {currentPage === 'family' && (
-            <FamilyPage
-              family={family}
-              members={members}
-              elderMode={elderMode}
-              onToggleElderMode={() => setElderMode(!elderMode)}
-              onOpenInviteModal={() => setInviteModalOpen(true)}
-              onUpdateMemberAlerts={(memberId, enabled) => {
-                setMembers((prev) =>
-                  prev.map((m) => (m.id === memberId ? { ...m, receiveAlerts: enabled } : m))
-                );
-              }}
-            />
-          )}
+            {currentPage === 'family' && (
+              <FamilyPage
+                family={family}
+                members={members}
+                elderMode={elderMode}
+                onToggleElderMode={() => setElderMode(!elderMode)}
+                onOpenInviteModal={() => setInviteModalOpen(true)}
+                onUpdateMemberAlerts={(memberId, enabled) => {
+                  setMembers((prev) =>
+                    prev.map((m) => (m.id === memberId ? { ...m, receiveAlerts: enabled } : m))
+                  );
+                  fetch(`/api/family/members/${memberId}/alerts`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ receiveAlerts: enabled }),
+                  }).catch((err) => console.error('Failed to persist alert setting:', err));
+                }}
+              />
+            )}
 
-          {currentPage === 'settings' && (
-            <SettingsPage
-              family={family}
-              user={user}
-              elderMode={elderMode}
-              onToggleElderMode={() => setElderMode(!elderMode)}
-            />
-          )}
+            {currentPage === 'settings' && (
+              <SettingsPage
+                family={family}
+                user={user}
+                elderMode={elderMode}
+                onToggleElderMode={() => setElderMode(!elderMode)}
+              />
+            )}
+          </ErrorBoundary>
         </main>
       </div>
 

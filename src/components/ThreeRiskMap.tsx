@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { MapRiskPin } from '../types';
-import { RotateCcw, MapPin } from 'lucide-react';
+import { RotateCcw, MapPin, ShieldAlert } from 'lucide-react';
+import { ErrorBoundary } from './ErrorBoundary';
 
 interface ThreeRiskMapProps {
   pins: MapRiskPin[];
@@ -9,7 +10,7 @@ interface ThreeRiskMapProps {
   selectedPinId?: string | null;
 }
 
-export const ThreeRiskMap: React.FC<ThreeRiskMapProps> = ({
+const ThreeRiskMapCanvas: React.FC<ThreeRiskMapProps> = ({
   pins,
   onPinSelect,
   selectedPinId,
@@ -449,3 +450,50 @@ export const ThreeRiskMap: React.FC<ThreeRiskMapProps> = ({
     </div>
   );
 };
+
+export const ThreeRiskMap: React.FC<ThreeRiskMapProps> = (props) => {
+  const fallback = (
+    <div className="relative w-full h-[420px] rounded-2xl bg-[#0B0F14] border border-white/10 p-6 flex flex-col justify-between overflow-hidden">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ShieldAlert className="w-5 h-5 text-amber-400" />
+          <h3 className="text-sm font-bold text-white">2D Threat Radar Summary</h3>
+        </div>
+        <span className="text-[10px] font-mono text-gray-400 bg-white/5 px-2 py-1 rounded">2D Fallback</span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 my-auto">
+        {props.pins.slice(0, 6).map((pin) => (
+          <div
+            key={pin.id}
+            onClick={() => props.onPinSelect && props.onPinSelect(pin)}
+            className="p-3 rounded-xl bg-white/5 border border-white/10 hover:border-[#5B8FFF] cursor-pointer transition"
+          >
+            <div className="flex items-center justify-between text-xs font-bold text-white mb-1">
+              <span>{pin.cityName}</span>
+              <span
+                className={`text-[9px] uppercase px-1.5 py-0.5 rounded ${
+                  pin.riskLevel === 'scam' ? 'bg-red-500/20 text-red-400' : 'bg-amber-500/20 text-amber-400'
+                }`}
+              >
+                {pin.riskLevel}
+              </span>
+            </div>
+            <p className="text-[11px] text-gray-400 line-clamp-1">"{pin.scamSnippet}"</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="text-[11px] text-gray-500 text-center">
+        WebGL 3D rendering was suspended. Live family threats remain monitored in 2D mode.
+      </div>
+    </div>
+  );
+
+  return (
+    <ErrorBoundary name="3D Threat Radar" fallback={fallback}>
+      <ThreeRiskMapCanvas {...props} />
+    </ErrorBoundary>
+  );
+};
+

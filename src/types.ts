@@ -29,6 +29,7 @@ export interface Family {
   createdAt: string;
   adminUserId: string;
   elderModeDefault: boolean;
+  retentionDays?: number;
 }
 
 export interface FamilyMember {

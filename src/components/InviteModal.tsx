@@ -10,10 +10,27 @@ interface InviteModalProps {
 
 export const InviteModal: React.FC<InviteModalProps> = ({ isOpen, onClose, family }) => {
   const [copied, setCopied] = useState(false);
+  const [invitePath, setInvitePath] = useState<string>(`/join/${family.code}`);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      fetch('/api/invites/generate', { method: 'POST' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data?.invitePath) {
+            setInvitePath(data.invitePath);
+          }
+        })
+        .catch(() => {
+          // Fallback to family code
+          setInvitePath(`/join/${family.code}`);
+        });
+    }
+  }, [isOpen, family.code]);
 
   if (!isOpen) return null;
 
-  const inviteLink = `${window.location.origin}/join/${family.code}`;
+  const inviteLink = `${window.location.origin}${invitePath}`;
   const whatsappShareText = encodeURIComponent(
     `🛡️ Join our ${family.name} circle on ScamShield! Whenever you get a suspicious WhatsApp message, link, or call, forward it to our AI guard to protect our family: ${inviteLink}`
   );
