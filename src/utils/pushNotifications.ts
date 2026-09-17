@@ -81,9 +81,10 @@ export async function subscribeUserToPush(): Promise<{ success: boolean; error?:
 export async function sendTestPushNotification(): Promise<{ success: boolean; error?: string }> {
   try {
     const res = await fetch('/api/notifications/test', { method: 'POST' });
-    const data = await res.json();
+    const contentType = res.headers.get('content-type');
+    const data = contentType?.includes('application/json') ? await res.json() : {};
     if (!res.ok) {
-      return { success: false, error: data.error || 'Failed to send test push' };
+      return { success: false, error: data.error || `Server error (${res.status})` };
     }
     return { success: true };
   } catch (err: any) {

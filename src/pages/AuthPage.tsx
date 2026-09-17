@@ -53,9 +53,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type');
+      const data = contentType?.includes('application/json') ? await res.json() : {};
       if (!res.ok) {
-        throw new Error(data.error || 'Registration failed');
+        throw new Error(data.error || `Server returned error status ${res.status}`);
       }
 
       onComplete(data.family?.name || circleName);
@@ -85,9 +86,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
         }),
       });
 
-      const data = await res.json();
+      const contentType = res.headers.get('content-type');
+      const data = contentType?.includes('application/json') ? await res.json() : {};
       if (!res.ok) {
-        throw new Error(data.error || 'Invalid credentials');
+        throw new Error(data.error || `Invalid credentials (status ${res.status})`);
       }
 
       onComplete(data.family?.name || 'Family Circle');

@@ -112,7 +112,7 @@ export default function App() {
   const loadAppData = useCallback(async () => {
     try {
       const meRes = await fetch('/api/auth/me');
-      if (meRes.ok) {
+      if (meRes.ok && meRes.headers.get('content-type')?.includes('application/json')) {
         const meData = await meRes.json();
         setUser(meData.user);
         setIsAuthenticated(true);
@@ -128,14 +128,14 @@ export default function App() {
           fetch('/api/map/pins'),
         ]);
 
-        if (famRes.ok) {
+        if (famRes.ok && famRes.headers.get('content-type')?.includes('application/json')) {
           const famData = await famRes.json();
           if (famData.family) setFamily(famData.family);
           if (famData.members) setMembers(famData.members);
           if (famData.stats) setStats(famData.stats);
         }
 
-        if (msgRes.ok) {
+        if (msgRes.ok && msgRes.headers.get('content-type')?.includes('application/json')) {
           const msgData = await msgRes.json();
           const loadedMessages: MessageItem[] = msgData.messages || [];
           setMessages(loadedMessages);
@@ -151,14 +151,14 @@ export default function App() {
           }
         }
 
-        if (mapRes.ok) {
+        if (mapRes.ok && mapRes.headers.get('content-type')?.includes('application/json')) {
           const mapData = await mapRes.json();
           if (mapData.pins && mapData.pins.length > 0) {
             setPins(mapData.pins);
           }
         }
 
-        if (alertRes.ok) {
+        if (alertRes.ok && alertRes.headers.get('content-type')?.includes('application/json')) {
           const alertData = await alertRes.json();
           setAlerts(alertData.alerts || []);
         }
