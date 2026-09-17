@@ -1,6 +1,8 @@
 // scripts/test-phase4.ts
+import { getTestBaseUrl } from './test-helper.js';
+
 async function runPhase4Tests() {
-  const base = 'http://localhost:3002';
+  const base = await getTestBaseUrl();
 
   // 1. Helmet Security Headers Check
   const healthRes = await fetch(`${base}/api/health`);

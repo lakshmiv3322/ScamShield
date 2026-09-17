@@ -1,6 +1,8 @@
 // scripts/test-phase3.ts
+import { getTestBaseUrl } from './test-helper.js';
+
 async function runPhase3Tests() {
-  const base = 'http://localhost:3002';
+  const base = await getTestBaseUrl();
 
   // 1. Authenticate as Rahul Sharma
   const loginRes = await fetch(`${base}/api/auth/login`, {

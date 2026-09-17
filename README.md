@@ -40,8 +40,8 @@ Every day, non-tech-savvy elderly parents and family members are targeted by sop
 * Increases contrast, expands font hierarchy, and simplifies controls to eliminate tech intimidation.
 
 ### 📢 4. 1-Click Family Defense Broadcast
-* When a high-risk scam is detected, broadcast an emergency advisory across all connected family WhatsApp contacts to prevent siblings and spouses from falling for the same pitch.
-* *Note: The emergency broadcast endpoint is simulated in the current build for demonstration purposes. Full production deployment requires integrating the WhatsApp Business API or Twilio Outbound Messaging API along with a recipient opt-in consent flow.*
+* When a high-risk scam is detected, broadcast an emergency advisory across all connected family channels simultaneously.
+* **Multi-Channel Dispatch Engine**: Dispatches VAPID Web Push notifications to active devices, automated Resend email alerts as fallback, and outbound WhatsApp advisories directly to verified family phone numbers via the WhatsApp Cloud API.
 
 ### 📱 5. Progressive Web App (PWA)
 * Standalone display mode with offline shell caching.
@@ -91,10 +91,19 @@ PORT=3000
 ### 4. Run Development Server
 ```bash
 npm run dev
-# or: bun run dev
 ```
 
 Open **[http://localhost:3000](http://localhost:3000)** in your browser.
+
+### 5. Run Automated Verification Tests
+```bash
+npm test
+```
+Executes comprehensive end-to-end integration tests covering:
+* **Ingestion & Webhooks**: Meta WhatsApp Cloud API webhooks & PWA Web Share Target (`scripts/test-phase2.ts`)
+* **Push Notifications & Fallback**: VAPID subscription registration, Push dispatcher & Resend email fallback (`scripts/test-phase3.ts`)
+* **Security & Reliability**: Helmet headers, tiered rate limiting, auth gating, and input sanitization (`scripts/test-phase4.ts`)
+* **AI Quality & Radar Mapping**: Hindi/Hinglish fraud heuristics, Safe Browsing checks & regional threat map pins (`scripts/test-phase5.ts`)
 
 ---
 

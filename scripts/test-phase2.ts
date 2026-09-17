@@ -1,6 +1,8 @@
 // scripts/test-phase2.ts
+import { getTestBaseUrl } from './test-helper.js';
+
 async function runPhase2Tests() {
-  const base = 'http://localhost:3002';
+  const base = await getTestBaseUrl();
   
   // 1. Health check
   const healthRes = await fetch(base + '/api/health');

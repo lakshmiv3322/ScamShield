@@ -1,5 +1,6 @@
 // scripts/test-phase5.ts
 import { runFraudAnalysis } from '../server/services/analyzer.js';
+import { getTestBaseUrl } from './test-helper.js';
 
 async function runPhase5Tests() {
   console.log('🚀 Running Phase 5 Verification Tests...\n');
@@ -40,12 +41,8 @@ async function runPhase5Tests() {
 
   // 3. Test API Endpoint: GET /api/map/pins
   console.log('Test 3: Threat Map Pins Endpoint (GET /api/map/pins)');
-  let mapRes;
-  try {
-    mapRes = await fetch('http://127.0.0.1:3002/api/map/pins');
-  } catch {
-    mapRes = await fetch('http://127.0.0.1:3000/api/map/pins');
-  }
+  const base = await getTestBaseUrl();
+  const mapRes = await fetch(`${base}/api/map/pins`);
 
   if (!mapRes.ok) {
     throw new Error(`HTTP ${mapRes.status} on /api/map/pins`);
