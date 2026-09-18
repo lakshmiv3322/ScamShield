@@ -85,7 +85,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel, initia
           name: newUser.name,
           relation: newUser.relation || 'Admin',
           role: 'admin',
-          avatarUrl: newUser.avatarUrl,
+          avatarUrl: newUser.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(newUser.name)}`,
           phone: newUser.phone,
           receiveAlerts: true,
           messagesAnalyzedThisWeek: 0,
