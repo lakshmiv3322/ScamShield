@@ -67,7 +67,7 @@ export function validateRegisterBody(body: unknown): { errors: ValidationError[]
 
   if (!isValidEmail(email)) errors.push({ field: 'email', message: 'A valid email address is required.' });
 
-  if (password.length < 8) errors.push({ field: 'password', message: 'Password must be at least 8 characters.' });
+  if (password.length < 6) errors.push({ field: 'password', message: 'Password must be at least 6 characters.' });
   if (password.length > 128) errors.push({ field: 'password', message: 'Password cannot exceed 128 characters.' });
 
   if (phone && !isValidPhone(phone)) errors.push({ field: 'phone', message: 'Phone number format is invalid.' });

@@ -73,40 +73,48 @@ authRouter.post('/register', registerRateLimit, async (req, res) => {
 
     req.session.userId = dbUser.id;
 
-    res.status(201).json({
-      user: {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        phone: dbUser.phone,
-        role: dbUser.role,
-        relation: dbUser.relation,
-        avatarUrl: dbUser.avatar_url,
-        elderModeEnabled: Boolean(dbUser.elder_mode_enabled),
-        createdAt: dbUser.created_at,
-      },
-      family: {
-        id: dbFamily.id,
-        name: dbFamily.name,
-        code: dbFamily.code,
-        adminUserId: dbFamily.admin_user_id,
-        elderModeDefault: Boolean(dbFamily.elder_mode_default),
-        createdAt: dbFamily.created_at,
-      },
-      member: {
-        id: dbMember.id,
-        familyId: dbMember.family_id,
-        userId: dbMember.user_id,
-        name: dbMember.name,
-        relation: dbMember.relation,
-        role: dbMember.role,
-        avatarUrl: dbMember.avatar_url,
-        phone: dbMember.phone,
-        receiveAlerts: Boolean(dbMember.receive_alerts),
-        messagesAnalyzedThisWeek: dbMember.messages_analyzed_this_week,
-        threatStatus: dbMember.threat_status,
-        joinedAt: dbMember.joined_at,
-      },
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        console.error('Session save error during registration:', saveErr);
+        res.status(500).json({ error: 'Account created, but session could not be established. Please sign in.' });
+        return;
+      }
+
+      res.status(201).json({
+        user: {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          phone: dbUser.phone,
+          role: dbUser.role,
+          relation: dbUser.relation,
+          avatarUrl: dbUser.avatar_url,
+          elderModeEnabled: Boolean(dbUser.elder_mode_enabled),
+          createdAt: dbUser.created_at,
+        },
+        family: {
+          id: dbFamily.id,
+          name: dbFamily.name,
+          code: dbFamily.code,
+          adminUserId: dbFamily.admin_user_id,
+          elderModeDefault: Boolean(dbFamily.elder_mode_default),
+          createdAt: dbFamily.created_at,
+        },
+        member: {
+          id: dbMember.id,
+          familyId: dbMember.family_id,
+          userId: dbMember.user_id,
+          name: dbMember.name,
+          relation: dbMember.relation,
+          role: dbMember.role,
+          avatarUrl: dbMember.avatar_url,
+          phone: dbMember.phone,
+          receiveAlerts: Boolean(dbMember.receive_alerts),
+          messagesAnalyzedThisWeek: dbMember.messages_analyzed_this_week,
+          threatStatus: dbMember.threat_status,
+          joinedAt: dbMember.joined_at,
+        },
+      });
     });
   } catch (err: any) {
     console.error('Registration error:', err);
@@ -142,40 +150,48 @@ authRouter.post('/login', loginRateLimit, async (req, res) => {
 
     req.session.userId = dbUser.id;
 
-    res.json({
-      user: {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        phone: dbUser.phone,
-        role: dbUser.role,
-        relation: dbUser.relation,
-        avatarUrl: dbUser.avatar_url,
-        elderModeEnabled: Boolean(dbUser.elder_mode_enabled),
-        createdAt: dbUser.created_at,
-      },
-      family: dbFamily ? {
-        id: dbFamily.id,
-        name: dbFamily.name,
-        code: dbFamily.code,
-        adminUserId: dbFamily.admin_user_id,
-        elderModeDefault: Boolean(dbFamily.elder_mode_default),
-        createdAt: dbFamily.created_at,
-      } : null,
-      member: member ? {
-        id: member.id,
-        familyId: member.family_id,
-        userId: member.user_id,
-        name: member.name,
-        relation: member.relation,
-        role: member.role,
-        avatarUrl: member.avatar_url,
-        phone: member.phone,
-        receiveAlerts: Boolean(member.receive_alerts),
-        messagesAnalyzedThisWeek: member.messages_analyzed_this_week,
-        threatStatus: member.threat_status,
-        joinedAt: member.joined_at,
-      } : null,
+    req.session.save((saveErr) => {
+      if (saveErr) {
+        console.error('Session save error during login:', saveErr);
+        res.status(500).json({ error: 'Failed to establish session. Please try again.' });
+        return;
+      }
+
+      res.json({
+        user: {
+          id: dbUser.id,
+          name: dbUser.name,
+          email: dbUser.email,
+          phone: dbUser.phone,
+          role: dbUser.role,
+          relation: dbUser.relation,
+          avatarUrl: dbUser.avatar_url,
+          elderModeEnabled: Boolean(dbUser.elder_mode_enabled),
+          createdAt: dbUser.created_at,
+        },
+        family: dbFamily ? {
+          id: dbFamily.id,
+          name: dbFamily.name,
+          code: dbFamily.code,
+          adminUserId: dbFamily.admin_user_id,
+          elderModeDefault: Boolean(dbFamily.elder_mode_default),
+          createdAt: dbFamily.created_at,
+        } : null,
+        member: member ? {
+          id: member.id,
+          familyId: member.family_id,
+          userId: member.user_id,
+          name: member.name,
+          relation: member.relation,
+          role: member.role,
+          avatarUrl: member.avatar_url,
+          phone: member.phone,
+          receiveAlerts: Boolean(member.receive_alerts),
+          messagesAnalyzedThisWeek: member.messages_analyzed_this_week,
+          threatStatus: member.threat_status,
+          joinedAt: member.joined_at,
+        } : null,
+      });
     });
   } catch (err: any) {
     console.error('Login error:', err);

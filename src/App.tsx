@@ -69,6 +69,7 @@ export default function App() {
 
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [authInitialMode, setAuthInitialMode] = useState<'register' | 'login'>('login');
 
   // Elder Mode (Increases font size, contrast, simplified view)
   const [elderMode, setElderMode] = useState<boolean>(() => {
@@ -594,6 +595,22 @@ export default function App() {
     );
   };
 
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.warn('Logout API error:', e);
+    } finally {
+      setIsAuthenticated(false);
+      setUser(defaultUser);
+      setFamily(defaultFamily);
+      setMembers([]);
+      setMessages([]);
+      setAlerts([]);
+      setCurrentPage('landing');
+    }
+  };
+
   const currentMessageItem =
     messages.find((m) => m.id === selectedMessageId) || messages[0];
   const senderMember = members.find((m) => m.id === currentMessageItem?.senderMemberId);
@@ -606,10 +623,14 @@ export default function App() {
           if (isAuthenticated) {
             setCurrentPage('dashboard');
           } else {
+            setAuthInitialMode('login');
             setCurrentPage('auth');
           }
         }}
-        onStartAuth={() => setCurrentPage('auth')}
+        onStartAuth={() => {
+          setAuthInitialMode('login');
+          setCurrentPage('auth');
+        }}
       />
     );
   }
@@ -618,6 +639,7 @@ export default function App() {
   if (currentPage === 'auth') {
     return (
       <AuthPage
+        initialMode={authInitialMode}
         onComplete={async (newCircleName) => {
           setFamily((prev) => ({ ...prev, name: newCircleName }));
           await loadAppData();
@@ -639,6 +661,7 @@ export default function App() {
         onToggleElderMode={() => setElderMode(!elderMode)}
         onNavigate={(page) => setCurrentPage(page)}
         onOpenAlerts={() => setCurrentPage('alerts')}
+        onLogout={handleLogout}
         currentPage={currentPage}
       />
 

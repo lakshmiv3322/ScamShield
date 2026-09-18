@@ -11,6 +11,7 @@ interface NavbarProps {
   onToggleElderMode: () => void;
   onNavigate: (page: string) => void;
   onOpenAlerts: () => void;
+  onLogout?: () => void;
   currentPage: string;
 }
 
@@ -22,6 +23,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleElderMode,
   onNavigate,
   onOpenAlerts,
+  onLogout,
   currentPage,
 }) => {
   const [profileOpen, setProfileOpen] = useState(false);
@@ -163,12 +165,13 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <button
                   onClick={() => {
                     setProfileOpen(false);
-                    onNavigate('landing');
+                    if (onLogout) onLogout();
+                    else onNavigate('landing');
                   }}
-                  className="w-full text-left px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition"
+                  className="w-full text-left px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 transition cursor-pointer"
                 >
                   <LogOut className="w-3.5 h-3.5" />
-                  Exit to Landing
+                  Sign Out
                 </button>
               </div>
             )}

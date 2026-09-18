@@ -12,7 +12,7 @@ const jsonLimitHandler = (req: any, res: any) => {
 // Auth rate limiters
 export const loginRateLimit = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 10,
+  max: 60,
   standardHeaders: true,
   legacyHeaders: false,
   message: undefined,
@@ -26,8 +26,8 @@ export const loginRateLimit = rateLimit({
 });
 
 export const registerRateLimit = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: 5,
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 50,
   standardHeaders: true,
   legacyHeaders: false,
   message: undefined,

@@ -14,10 +14,11 @@ import {
 interface AuthPageProps {
   onComplete: (circleName: string) => void;
   onCancel: () => void;
+  initialMode?: 'register' | 'login';
 }
 
-export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
-  const [authMode, setAuthMode] = useState<'register' | 'login'>('register');
+export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel, initialMode = 'register' }) => {
+  const [authMode, setAuthMode] = useState<'register' | 'login'>(initialMode);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [audienceType, setAudienceType] = useState<'parents' | 'family' | 'myself'>('parents');
   
@@ -44,11 +45,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: userName,
-          email: userEmail,
+          name: userName.trim(),
+          email: userEmail.toLowerCase().trim(),
           password: userPassword,
-          phone: userPhone,
-          circleName,
+          phone: userPhone.trim(),
+          circleName: circleName.trim(),
           relation: audienceType === 'parents' ? 'Son / Daughter' : 'Guardian',
         }),
       });
@@ -56,6 +57,9 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
       const contentType = res.headers.get('content-type');
       const data = contentType?.includes('application/json') ? await res.json() : {};
       if (!res.ok) {
+        if (res.status === 409) {
+          throw new Error('An account with this email already exists. Switch to "Existing Member Sign In" to log in.');
+        }
         throw new Error(data.error || `Server returned error status ${res.status}`);
       }
 
@@ -67,9 +71,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
     }
   };
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!loginEmail || !loginPassword) {
+  const handleLogin = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const cleanEmail = loginEmail.toLowerCase().trim();
+    if (!cleanEmail || !loginPassword) {
       setErrorMsg('Please enter both email and password.');
       return;
     }
@@ -81,7 +86,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          email: loginEmail,
+          email: cleanEmail,
           password: loginPassword,
         }),
       });
@@ -94,7 +99,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
 
       onComplete(data.family?.name || 'Family Circle');
     } catch (err: any) {
-      setErrorMsg(err.message || 'Login failed');
+      setErrorMsg(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
     }
@@ -209,6 +214,30 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel }) => {
               <p className="text-xs text-gray-400 mt-1">
                 Enter your credentials to manage alerts and monitor family threats.
               </p>
+            </div>
+
+            {/* Quick Demo Credentials Card */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#5B8FFF]/10 to-blue-600/10 border border-[#5B8FFF]/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <span className="text-xs font-bold text-white">Seeded Demo Account</span>
+                </div>
+                <div className="text-[11px] text-gray-300 font-mono mt-0.5">
+                  rahul.sharma@example.com • password123
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setLoginEmail('rahul.sharma@example.com');
+                  setLoginPassword('password123');
+                  setErrorMsg(null);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-[#5B8FFF] hover:bg-blue-600 text-white text-xs font-bold transition shadow-md shadow-blue-500/20 whitespace-nowrap self-stretch sm:self-auto text-center cursor-pointer"
+              >
+                Auto-Fill Demo
+              </button>
             </div>
 
             <div>

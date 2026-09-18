@@ -48,8 +48,8 @@ export function createUser(user: {
 
 export function getUserByEmail(email: string): DbUser | null {
   const db = getDb();
-  const stmt = db.prepare('SELECT * FROM users WHERE email = ?');
-  return (stmt.get(email.toLowerCase().trim()) as DbUser) || null;
+  const stmt = db.prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(?)');
+  return (stmt.get(email.trim()) as DbUser) || null;
 }
 
 export function getUserById(id: string): DbUser | null {
