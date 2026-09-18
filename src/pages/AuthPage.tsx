@@ -5,11 +5,13 @@ import {
   ArrowLeft,
   Users,
   Heart,
-  User,
+  User as UserIcon,
   LogIn,
   AlertCircle,
   Loader2,
 } from 'lucide-react';
+import { initialUser, initialFamily, initialFamilyMembers } from '../mock/data';
+import { User, Family, FamilyMember } from '../types';
 
 interface AuthPageProps {
   onComplete: (circleName: string) => void;
@@ -54,6 +56,52 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel, initia
         }),
       });
 
+      // If on static host (Vercel) without Express backend running
+      if (res.status === 404) {
+        console.warn('Backend /api/auth/register returned 404 (Static Vercel host detected). Initializing client demo circle.');
+        const newUser: User = {
+          id: `usr_${Date.now()}`,
+          name: userName.trim() || 'Family Guardian',
+          email: userEmail.toLowerCase().trim() || 'guardian@example.com',
+          phone: userPhone.trim() || '+91 98201 44819',
+          role: 'admin',
+          relation: audienceType === 'parents' ? 'Son / Daughter' : 'Guardian',
+          avatarUrl: `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userName.trim() || 'Guardian')}`,
+          elderModeEnabled: false,
+          createdAt: new Date().toISOString(),
+        };
+        const newFamily: Family = {
+          id: `fam_${Date.now()}`,
+          name: circleName.trim() || 'Family Circle',
+          code: `SHIELD-${Math.floor(1000 + Math.random() * 9000)}`,
+          adminUserId: newUser.id,
+          elderModeDefault: false,
+          createdAt: new Date().toISOString(),
+        };
+        const newMember: FamilyMember = {
+          id: `mem_${Date.now()}`,
+          familyId: newFamily.id,
+          userId: newUser.id,
+          name: newUser.name,
+          relation: newUser.relation || 'Admin',
+          role: 'admin',
+          avatarUrl: newUser.avatarUrl,
+          phone: newUser.phone,
+          receiveAlerts: true,
+          messagesAnalyzedThisWeek: 0,
+          threatStatus: 'protected',
+          joinedAt: new Date().toISOString(),
+        };
+        const demoSession = {
+          user: newUser,
+          family: newFamily,
+          members: [newMember, ...initialFamilyMembers.slice(1)],
+        };
+        localStorage.setItem('scamshield_demo_session', JSON.stringify(demoSession));
+        onComplete(newFamily.name);
+        return;
+      }
+
       const contentType = res.headers.get('content-type');
       const data = contentType?.includes('application/json') ? await res.json() : {};
       if (!res.ok) {
@@ -91,6 +139,26 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel, initia
         }),
       });
 
+      // If on static host (Vercel) without Express backend running
+      if (res.status === 404) {
+        console.warn('Backend /api/auth/login returned 404 (Static Vercel host detected). Initializing client demo session.');
+        const isRahul = cleanEmail.includes('rahul') || cleanEmail.includes('sharma');
+        const demoSession = {
+          user: isRahul
+            ? initialUser
+            : {
+                ...initialUser,
+                email: cleanEmail,
+                name: cleanEmail.split('@')[0].replace('.', ' '),
+              },
+          family: initialFamily,
+          members: initialFamilyMembers,
+        };
+        localStorage.setItem('scamshield_demo_session', JSON.stringify(demoSession));
+        onComplete(initialFamily.name);
+        return;
+      }
+
       const contentType = res.headers.get('content-type');
       const data = contentType?.includes('application/json') ? await res.json() : {};
       if (!res.ok) {
@@ -99,6 +167,17 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel, initia
 
       onComplete(data.family?.name || 'Family Circle');
     } catch (err: any) {
+      // If network failed completely (offline / CORS)
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        const demoSession = {
+          user: initialUser,
+          family: initialFamily,
+          members: initialFamilyMembers,
+        };
+        localStorage.setItem('scamshield_demo_session', JSON.stringify(demoSession));
+        onComplete(initialFamily.name);
+        return;
+      }
       setErrorMsg(err.message || 'Login failed. Please check your credentials.');
     } finally {
       setLoading(false);
@@ -325,7 +404,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onComplete, onCancel, initia
                       id: 'myself',
                       title: 'Just Myself for Now',
                       desc: 'Instant verification for job scams, bank phishing links, and crypto fraud messages.',
-                      icon: User,
+                      icon: UserIcon,
                       badge: null,
                     },
                   ].map((item) => {

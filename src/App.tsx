@@ -25,6 +25,15 @@ import { FamilyPage } from './pages/FamilyPage';
 import { MessagesPage } from './pages/MessagesPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { AuthPage } from './pages/AuthPage';
+import {
+  initialFamily,
+  initialFamilyMembers,
+  initialMessages,
+  initialAlerts,
+  initialMapPins,
+  initialStats,
+  initialUser,
+} from './mock/data';
 
 const defaultUser: User = {
   id: '',
@@ -171,11 +180,52 @@ export default function App() {
         } else {
           setCurrentPage((prev) => (prev === 'landing' || prev === 'auth' ? 'dashboard' : prev));
         }
+        return;
+      }
+
+      // Check for client-side demo session (e.g. on static deployments like Vercel where /api/* 404s)
+      const storedDemo = localStorage.getItem('scamshield_demo_session');
+      if (storedDemo) {
+        try {
+          const sessionData = JSON.parse(storedDemo);
+          setUser(sessionData.user || initialUser);
+          setFamily(sessionData.family || initialFamily);
+          setMembers(sessionData.members || initialFamilyMembers);
+          setMessages(initialMessages);
+          setAlerts(initialAlerts);
+          setPins(initialMapPins);
+          setStats(initialStats);
+          setIsAuthenticated(true);
+          setSelectedMessageId(initialMessages[0]?.id || '');
+          setCurrentPage((prev) => (prev === 'landing' || prev === 'auth' ? 'dashboard' : prev));
+          return;
+        } catch (e) {
+          console.warn('Could not parse demo session:', e);
+        }
+      }
+
+      setIsAuthenticated(false);
+    } catch (e) {
+      console.warn('Could not fetch session, checking static demo session:', e);
+      const storedDemo = localStorage.getItem('scamshield_demo_session');
+      if (storedDemo) {
+        try {
+          const sessionData = JSON.parse(storedDemo);
+          setUser(sessionData.user || initialUser);
+          setFamily(sessionData.family || initialFamily);
+          setMembers(sessionData.members || initialFamilyMembers);
+          setMessages(initialMessages);
+          setAlerts(initialAlerts);
+          setPins(initialMapPins);
+          setStats(initialStats);
+          setIsAuthenticated(true);
+          setCurrentPage('dashboard');
+        } catch (_) {
+          setIsAuthenticated(false);
+        }
       } else {
         setIsAuthenticated(false);
       }
-    } catch (e) {
-      console.warn('Could not fetch session, staying on current view:', e);
     } finally {
       setAuthChecking(false);
     }
@@ -601,6 +651,7 @@ export default function App() {
     } catch (e) {
       console.warn('Logout API error:', e);
     } finally {
+      localStorage.removeItem('scamshield_demo_session');
       setIsAuthenticated(false);
       setUser(defaultUser);
       setFamily(defaultFamily);
